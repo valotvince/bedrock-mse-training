@@ -1,22 +1,25 @@
-import { getSegments } from './utils/segments';
+import { getSegments, getMimeType, findSegment, findNearestCompleteSegment } from './utils/segments';
 import { fetchSegment } from './utils/networking';
 
-/**
- * REFERENCES
- *
- * window.MediaSource
- * window.SourceBuffer
- */
+// This is a list of clear video segments
+const videoSegments = getSegments('video');
+const videoMimeType = getMimeType('video');
+// This is a list of clear audio segments
+const audioSegments = getSegments('audio');
+const audioMimeType = getMimeType('audio');
 
-const loadVideo = (videoTag: HTMLVideoElement) => {
-  console.log("This is a log just to confirm we've reached the loadVideo callback");
+// This videoTag element to be used
+const videoTag = document.querySelector('video');
+// MediaSource object to be used
+const mediaSource = new MediaSource();
 
-  // This is a list of clear video segments
-  const videoSegments = getSegments('video');
-
-  // Work to be done !
-};
+const getPlaybackPosition = () => videoTag.currentTime;
 
 window.addEventListener('load', () => {
-  loadVideo(document.querySelector('video'));
+  console.log("This is a log just to confirm we've reached the load callback");
+
+  videoTag.src = URL.createObjectURL(mediaSource);
+
+  // More work to be done !
+  // ...
 });
