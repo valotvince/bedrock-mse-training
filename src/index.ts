@@ -16,6 +16,34 @@ const mediaSource = new MediaSource();
 
 const getPlaybackPosition = () => videoTag.currentTime;
 
+async function onMediaSourceOpen() {
+  const buffer = mediaSource.addSourceBuffer(videoMimeType);
+
+  const segmentsData: ArrayBuffer[] = [];
+
+  // Listen for when the buffer ends updating, and add the queued segments data
+  buffer.addEventListener('updateend', () => {
+    const data = segmentsData.shift();
+
+    if (data) {
+      buffer.appendBuffer(data);
+    }
+  });
+
+  // Loop through the known videoSegments in order
+  for (const segment of videoSegments) {
+    const segmentData = await fetchSegment(segment.url);
+
+    // If the buffer is currently appending buffer, we should queue the segment
+    // and wait for the operation to finish before adding any more buffer.
+    if (buffer.updating) {
+      segmentsData.push(segmentData);
+    } else {
+      buffer.appendBuffer(segmentData);
+    }
+  }
+}
+
 window.addEventListener('load', () => {
   console.log("This is a log just to confirm we've reached the load callback");
 
@@ -23,4 +51,5 @@ window.addEventListener('load', () => {
 
   // More work to be done !
   // ...
+  mediaSource.addEventListener('sourceopen', onMediaSourceOpen);
 });
