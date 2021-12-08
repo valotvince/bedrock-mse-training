@@ -17,10 +17,15 @@ const mediaSource = new MediaSource();
 
 const getPlaybackPosition = () => videoTag.currentTime;
 
+const options = {
+  bufferGoal: 3,
+};
 class BufferManager {
   buffer: SourceBuffer;
+  segments: Segment[] = [];
   queue: Segment[] = [];
   mimeType: string;
+  tickTimeout?: number;
 
   constructor(mediaSource: MediaSource, mimeType: string) {
     this.buffer = mediaSource.addSourceBuffer(mimeType);
@@ -57,11 +62,29 @@ class BufferManager {
     }
   }
 
-  async schedule(segments: Segment[]) {
-    // Loop through the known videoSegments in order
-    for (const segment of segments) {
-      await this.fetchAndQueueSegment(segment);
+  tick = async () => {
+    const currentPlaybackPosition = getPlaybackPosition();
+    const bufferRange = getBufferedRange(this.buffer.buffered, currentPlaybackPosition);
+
+    if (bufferRange && bufferRange.end - currentPlaybackPosition < options.bufferGoal) {
+      const nextSegment = findSegment(this.segments, bufferRange.end);
+
+      if (nextSegment) {
+        await this.fetchAndQueueSegment(nextSegment);
+      }
     }
+
+    this.tickTimeout = window.setTimeout(this.tick, 1000);
+  };
+
+  async schedule(segments: Segment[]) {
+    this.segments = segments;
+
+    // Fetch 2 segments as part as the buffer goal
+    await this.fetchAndQueueSegment(segments[0]);
+    await this.fetchAndQueueSegment(segments[1]);
+
+    this.tickTimeout = window.setTimeout(this.tick, 1000);
   }
 }
 

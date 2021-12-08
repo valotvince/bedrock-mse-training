@@ -7,5 +7,6 @@
     "allowJs": true,
     "moduleResolution": "node",
     "esModuleInterop": true
-  }
+  },
+  "exclude": ["node_modules"]
 }
