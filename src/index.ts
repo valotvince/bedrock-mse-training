@@ -18,12 +18,15 @@ const mediaSource = new MediaSource();
 const getPlaybackPosition = () => videoTag.currentTime;
 
 const options = {
-  bufferGoal: 3,
+  bufferGoal: 4,
 };
+
+type QueueOperationCallback = (buffer: SourceBuffer) => void;
+
 class BufferManager {
   buffer: SourceBuffer;
   segments: Segment[] = [];
-  queue: Segment[] = [];
+  queue: QueueOperationCallback[] = [];
   mimeType: string;
   tickTimeout?: number;
 
@@ -40,12 +43,22 @@ class BufferManager {
       return;
     }
 
-    const segment = this.queue.shift();
+    const operation = this.queue.shift();
 
-    if (segment && segment.data) {
-      this.buffer.appendBuffer(segment.data);
+    if (operation) {
+      operation(this.buffer);
     }
   };
+
+  queueOperation(operation: QueueOperationCallback) {
+    // If the buffer is currently appending buffer, we should queue the segment
+    // and wait for the operation to finish before adding any more buffer.
+    if (this.buffer.updating) {
+      this.queue.push(operation);
+    } else {
+      operation(this.buffer);
+    }
+  }
 
   async fetchAndQueueSegment(segment: Segment) {
     // Set data only if it hasn't been fetched already
@@ -53,20 +66,23 @@ class BufferManager {
       segment.data = await fetchSegment(segment.url);
     }
 
-    // If the buffer is currently appending buffer, we should queue the segment
-    // and wait for the operation to finish before adding any more buffer.
-    if (this.buffer.updating) {
-      this.queue.push(segment);
-    } else {
-      this.buffer.appendBuffer(segment.data);
-    }
+    this.queueOperation((buffer: SourceBuffer) => buffer.appendBuffer(segment.data));
   }
 
   tick = async () => {
     const currentPlaybackPosition = getPlaybackPosition();
     const bufferRange = getBufferedRange(this.buffer.buffered, currentPlaybackPosition);
 
-    if (bufferRange && bufferRange.end - currentPlaybackPosition < options.bufferGoal) {
+    // If we are out of buffer bounds (seek), we'll need to remove any buffer we had
+    // and reconstruct the buffer from there
+    if (!bufferRange) {
+      const nextSegment = findNearestCompleteSegment(this.segments, currentPlaybackPosition);
+
+      if (nextSegment) {
+        await this.fetchAndQueueSegment(nextSegment);
+      }
+    } else if (bufferRange && bufferRange.end - currentPlaybackPosition < options.bufferGoal) {
+      // If we don't have enough buffer left for our buffer goal, let's fetch another segment
       const nextSegment = findSegment(this.segments, bufferRange.end);
 
       if (nextSegment) {
