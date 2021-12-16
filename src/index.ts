@@ -1,5 +1,6 @@
 import { getSegments, getMimeType, findSegment, findNearestCompleteSegment } from './utils/segments';
 import { fetchSegment } from './utils/networking';
+import { getBufferedRange } from './utils/buffer';
 
 // This is a list of clear video segments
 const videoSegments = getSegments('video');
